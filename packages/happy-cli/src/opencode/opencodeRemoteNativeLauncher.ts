@@ -289,7 +289,6 @@ export async function opencodeRemoteNativeLauncher(
 
         try {
           await runPromise
-          session.client.sendSessionEvent({ type: 'ready' })
         } catch (error) {
           if (error instanceof ExitCodeError && exitReason) {
             return exitReason
@@ -318,6 +317,17 @@ export async function opencodeRemoteNativeLauncher(
           abortController(pendingBatchWaitAbortController)
           unlinkPendingBatchAbort()
           unlinkRunAbort()
+          // Observe the runPromise settlement without throwing, so we don't override
+          // the catch's return value or fall-through behavior
+          runPromise.catch(() => {})
+        }
+
+        // Send 'ready' event after finally block to ensure it runs regardless of
+        // whether runPromise resolved or rejected, without preventing continuation
+        try {
+          session.client.sendSessionEvent({ type: 'ready' })
+        } catch {
+          // Ignore sendSessionEvent errors to not override the catch's return value
         }
 
         pendingBatch = (await nextPendingBatchPromise) ?? pendingBatch
